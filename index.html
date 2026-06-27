@@ -270,10 +270,8 @@
         }
 
         items.forEach(item => {
-          // New /items endpoint uses item.track for songs, item.episode for podcasts
-          const track = item.track || item.episode;
+          const track = item.item || item.track || item.episode;
           if (!track || !track.uri) return;
-          // Try multiple paths for release date
           const releaseDate = (track.album && track.album.release_date)
             || track.release_date
             || '';
