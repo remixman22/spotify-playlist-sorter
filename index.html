@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Country Playlist Sorter</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a0a; color: #e8e8e8; min-height: 100vh;
+      display: flex; align-items: flex-start; justify-content: center; padding: 3rem 1rem;
+    }
+    .app { width: 100%; max-width: 560px; }
+    h1 { font-size: 22px; font-weight: 600; color: #fff; margin-bottom: 0.25rem; }
+    .subtitle { font-size: 14px; color: #888; margin-bottom: 2rem; }
+    .card { background: #141414; border: 1px solid #242424; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; }
+    .card-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #555; margin-bottom: 0.4rem; }
+    .card-title { font-size: 16px; font-weight: 500; color: #fff; margin-bottom: 1rem; }
+    .card.disabled { opacity: 0.4; pointer-events: none; }
+    label { display: block; font-size: 13px; color: #888; margin-bottom: 0.4rem; }
+    input[type="text"] {
+      width: 100%; padding: 10px 14px; background: #1e1e1e; border: 1px solid #2e2e2e;
+      border-radius: 8px; color: #fff; font-size: 14px; margin-bottom: 1rem; outline: none;
+    }
+    input[type="text"]:focus { border-color: #1DB954; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px;
+      border-radius: 8px; border: none; font-size: 14px; font-weight: 500;
+      cursor: pointer; transition: opacity 0.15s;
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-spotify { background: #1DB954; color: #fff; }
+    .btn-spotify:hover:not(:disabled) { background: #1aa34a; }
+    .btn-default { background: #222; color: #fff; border: 1px solid #333; }
+    .btn-default:hover:not(:disabled) { background: #2a2a2a; }
+    .status { font-size: 13px; color: #888; margin-top: 0.75rem; min-height: 18px; }
+    .status.error { color: #f55; }
+    .status.success { color: #1DB954; }
+    .redirect-box {
+      background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 6px;
+      padding: 8px 12px; font-size: 12px; font-family: monospace; color: #aaa;
+      word-break: break-all; margin-bottom: 1rem;
+    }
+    .debug-box {
+      background: #1a1000; border: 1px solid #332200; border-radius: 6px;
+      padding: 10px 12px; font-size: 11px; font-family: monospace; color: #aa8833;
+      word-break: break-all; margin-top: 0.75rem; line-height: 1.6; display: none;
+    }
+    .progress-bar { height: 3px; background: #222; border-radius: 2px; margin-top: 1rem; overflow: hidden; display: none; }
+    .progress-fill { height: 100%; background: #1DB954; border-radius: 2px; transition: width 0.3s; width: 0%; }
+    .buckets { display: none; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 1rem; }
+    .bucket { background: #1a1a1a; border: 1px solid #242424; border-radius: 8px; padding: 0.75rem; }
+    .bucket-year { font-size: 11px; color: #555; margin-bottom: 2px; }
+    .bucket-count { font-size: 24px; font-weight: 600; color: #fff; }
+    .bucket-name { font-size: 10px; color: #666; margin-top: 2px; line-height: 1.3; }
+    .log { margin-top: 1rem; max-height: 180px; overflow-y: auto; font-size: 12px; font-family: monospace; color: #666; line-height: 1.7; display: none; }
+    .log div.ok { color: #1DB954; }
+    .log div.err { color: #f55; }
+    .done-box { background: #0d1f12; border: 1px solid #1a3a20; border-radius: 8px; padding: 1rem; margin-top: 1rem; display: none; }
+    .done-box p { font-size: 14px; color: #1DB954; font-weight: 500; }
+    .done-box span { font-size: 13px; color: #888; display: block; margin-top: 4px; }
+    .spotify-icon { width: 18px; height: 18px; fill: currentColor; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>Country Playlist Sorter</h1>
+    <p class="subtitle">Splits New Country into year-based playlists automatically.</p>
+
+    <div class="card" id="card-auth">
+      <div class="card-label">Step 1</div>
+      <div class="card-title">Connect to Spotify</div>
+      <label>Your redirect URI — must match exactly in your Spotify app</label>
+      <div class="redirect-box" id="redirect-uri"></div>
+      <label>Client ID</label>
+      <input type="text" id="client-id" placeholder="Paste your Spotify Client ID" />
+      <button class="btn btn-spotify" onclick="handleLogin()">
+        <svg class="spotify-icon" viewBox="0 0 24 24"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+        Connect to Spotify
+      </button>
+      <div class="status" id="auth-status"></div>
+      <div class="debug-box" id="auth-debug"></div>
+    </div>
+
+    <div class="card disabled" id="card-scan">
+      <div class="card-label">Step 2</div>
+      <div class="card-title">Scan New Country playlist</div>
+      <p style="font-size:13px;color:#888;margin-bottom:1rem;">Logged in as <strong id="user-name" style="color:#fff"></strong></p>
+      <button class="btn btn-default" onclick="handleScan()" id="scan-btn">Scan playlist</button>
+      <div class="progress-bar" id="scan-progress"><div class="progress-fill" id="scan-fill"></div></div>
+      <div class="status" id="scan-status"></div>
+      <div class="debug-box" id="scan-debug"></div>
+      <div class="buckets" id="buckets"></div>
+    </div>
+
+    <div class="card disabled" id="card-sort">
+      <div class="card-label">Step 3</div>
+      <div class="card-title">Run the sort</div>
+      <p style="font-size:13px;color:#888;margin-bottom:1rem;">Creates new playlists, moves tracks, removes from New Country.</p>
+      <button class="btn btn-spotify" onclick="handleSort()" id="sort-btn">Run sort</button>
+      <div class="progress-bar" id="sort-progress"><div class="progress-fill" id="sort-fill"></div></div>
+      <div class="status" id="sort-status"></div>
+      <div class="log" id="sort-log"></div>
+      <div class="done-box" id="done-box">
+        <p>✓ All done!</p>
+        <span id="done-msg"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SCOPES = 'playlist-read-private playlist-modify-private playlist-modify-public';
+    const REDIRECT_URI = window.location.origin + window.location.pathname;
+    document.getElementById('redirect-uri').textContent = REDIRECT_URI;
+
+    let token = null;
+    let userId = null;
+    let sourcePlaylistId = null;
+    let buckets = { '2026': [], '2025': [], '2024': [], 'old': [] };
+
+    function generateRandomString(length) {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      const arr = new Uint8Array(length);
+      crypto.getRandomValues(arr);
+      return Array.from(arr).map(x => chars[x % chars.length]).join('');
+    }
+
+    async function generateCodeChallenge(verifier) {
+      const data = new TextEncoder().encode(verifier);
+      const digest = await crypto.subtle.digest('SHA-256', data);
+      return btoa(String.fromCharCode(...new Uint8Array(digest)))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    }
+
+    function setStatus(id, msg, type) {
+      const el = document.getElementById(id);
+      el.textContent = msg;
+      el.className = 'status' + (type ? ' ' + type : '');
+    }
+
+    function showDebug(id, data) {
+      const el = document.getElementById(id);
+      el.style.display = 'block';
+      el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+    }
+
+    function enableCard(id) {
+      document.getElementById(id).classList.remove('disabled');
+    }
+
+    function addLog(msg, type) {
+      const log = document.getElementById('sort-log');
+      log.style.display = 'block';
+      const d = document.createElement('div');
+      d.textContent = msg;
+      if (type) d.className = type;
+      log.appendChild(d);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    async function handleLogin() {
+      const clientId = document.getElementById('client-id').value.trim();
+      if (!clientId) { setStatus('auth-status', 'Please enter your Client ID.', 'error'); return; }
+      sessionStorage.setItem('spotify_client_id', clientId);
+
+      const verifier = generateRandomString(64);
+      const challenge = await generateCodeChallenge(verifier);
+      sessionStorage.setItem('pkce_verifier', verifier);
+
+      const params = new URLSearchParams({
+        client_id: clientId,
+        response_type: 'code',
+        redirect_uri: REDIRECT_URI,
+        scope: SCOPES,
+        code_challenge_method: 'S256',
+        code_challenge: challenge,
+        show_dialog: 'true'
+      });
+      window.location.href = 'https://accounts.spotify.com/authorize?' + params;
+    }
+
+    async function exchangeCode(code) {
+      const clientId = sessionStorage.getItem('spotify_client_id');
+      const verifier = sessionStorage.getItem('pkce_verifier');
+
+      showDebug('auth-debug', `Exchanging code...\nClient ID: ${clientId}\nVerifier length: ${verifier ? verifier.length : 'MISSING'}\nRedirect URI: ${REDIRECT_URI}`);
+
+      const res = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: clientId,
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: REDIRECT_URI,
+          code_verifier: verifier
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        showDebug('auth-debug', `Token exchange failed:\n${JSON.stringify(data, null, 2)}`);
+        throw new Error(data.error_description || data.error || 'Token exchange failed');
+      }
+
+      showDebug('auth-debug', `Token received. Expires in: ${data.expires_in}s\nScope: ${data.scope}`);
+      return data.access_token;
+    }
+
+    async function apiFetch(url, opts = {}) {
+      const res = await fetch(url, {
+        ...opts,
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json',
+          ...(opts.headers || {})
+        }
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        const msg = err.error?.message || 'API error ' + res.status;
+        if (url.includes('playlists')) {
+          showDebug('scan-debug', `URL: ${url}\nStatus: ${res.status}\nError: ${JSON.stringify(err, null, 2)}\nToken (first 20 chars): ${token ? token.substring(0,20) : 'NULL'}`);
+        }
+        throw new Error(msg);
+      }
+      if (res.status === 204) return null;
+      return res.json();
+    }
+
+    async function getAll(url) {
+      let results = [];
+      while (url) {
+        const data = await apiFetch(url);
+        results = results.concat(data.items);
+        url = data.next;
+      }
+      return results;
+    }
+
+    async function handleScan() {
+      const btn = document.getElementById('scan-btn');
+      btn.disabled = true;
+      setStatus('scan-status', 'Searching for New Country playlist…');
+      document.getElementById('scan-progress').style.display = 'block';
+
+      try {
+        const playlists = await getAll('https://api.spotify.com/v1/me/playlists?limit=50');
+        const pl = playlists.find(p => p.name.toLowerCase() === 'new country');
+        if (!pl) {
+          setStatus('scan-status', 'No playlist called "New Country" found.', 'error');
+          btn.disabled = false;
+          return;
+        }
+
+        sourcePlaylistId = pl.id;
+        setStatus('scan-status', `Found "${pl.name}" — loading tracks…`);
+        document.getElementById('scan-fill').style.width = '30%';
+
+        const items = await getAll(`https://api.spotify.com/v1/playlists/${pl.id}/items?limit=100`);
+        document.getElementById('scan-fill').style.width = '80%';
+
+        buckets = { '2026': [], '2025': [], '2024': [], 'old': [] };
+
+        // Debug: log first item structure
+        if (items.length > 0) {
+          showDebug('scan-debug', 'First item sample:\n' + JSON.stringify(items[0], null, 2).substring(0, 600));
+        }
+
+        items.forEach(item => {
+          // New /items endpoint uses item.track for songs, item.episode for podcasts
+          const track = item.track || item.episode;
+          if (!track || !track.uri) return;
+          // Try multiple paths for release date
+          const releaseDate = (track.album && track.album.release_date)
+            || track.release_date
+            || '';
+          const year = parseInt(releaseDate.substring(0, 4), 10);
+          const uri = track.uri;
+          if (year === 2026) buckets['2026'].push(uri);
+          else if (year === 2025) buckets['2025'].push(uri);
+          else if (year === 2024) buckets['2024'].push(uri);
+          else buckets['old'].push(uri);
+        });
+
+        document.getElementById('scan-fill').style.width = '100%';
+        const bucketsEl = document.getElementById('buckets');
+        bucketsEl.style.display = 'grid';
+        bucketsEl.innerHTML = [
+          { year: '2026', key: '2026', label: 'Country 2026' },
+          { year: '2025', key: '2025', label: 'Country 2025' },
+          { year: '2024', key: '2024', label: 'Country 2024' },
+          { year: 'Pre-2024', key: 'old', label: 'Old Country Favourites' }
+        ].map(b => `
+          <div class="bucket">
+            <div class="bucket-year">${b.year}</div>
+            <div class="bucket-count">${buckets[b.key].length}</div>
+            <div class="bucket-name">${b.label}</div>
+          </div>
+        `).join('');
+
+        setStatus('scan-status', `${items.length} tracks found and sorted by year.`, 'success');
+        enableCard('card-sort');
+      } catch(e) {
+        setStatus('scan-status', 'Error: ' + e.message, 'error');
+        btn.disabled = false;
+      }
+    }
+
+    async function createOrFind(name) {
+      const playlists = await getAll('https://api.spotify.com/v1/me/playlists?limit=50');
+      const existing = playlists.find(p => p.name === name && p.owner.id === userId);
+      if (existing) { addLog(`✓ Using existing: ${name}`, 'ok'); return existing.id; }
+      const data = await apiFetch(`https://api.spotify.com/v1/users/${userId}/playlists`, {
+        method: 'POST',
+        body: JSON.stringify({ name, public: false, description: 'Sorted by Country Playlist Sorter' })
+      });
+      addLog(`+ Created: ${name}`, 'ok');
+      return data.id;
+    }
+
+    async function addTracks(playlistId, uris) {
+      for (let i = 0; i < uris.length; i += 100) {
+        await apiFetch(`https://api.spotify.com/v1/playlists/${playlistId}/items`, {
+          method: 'POST',
+          body: JSON.stringify({ uris: uris.slice(i, i + 100) })
+        });
+      }
+    }
+
+    async function removeTracks(playlistId, uris) {
+      for (let i = 0; i < uris.length; i += 100) {
+        await apiFetch(`https://api.spotify.com/v1/playlists/${playlistId}/items`, {
+          method: 'DELETE',
+          body: JSON.stringify({ tracks: uris.slice(i, i + 100).map(u => ({ uri: u })) })
+        });
+      }
+    }
+
+    async function handleSort() {
+      const btn = document.getElementById('sort-btn');
+      btn.disabled = true;
+      document.getElementById('sort-progress').style.display = 'block';
+
+      const config = [
+        { key: '2026', name: 'Country 2026' },
+        { key: '2025', name: 'Country 2025' },
+        { key: '2024', name: 'Country 2024' },
+        { key: 'old',  name: 'Old Country Favourites' }
+      ];
+
+      const active = config.filter(b => buckets[b.key].length > 0);
+      let step = 0; const total = active.length * 2 + 1;
+      let allMoved = [];
+
+      try {
+        for (const b of config) {
+          const uris = buckets[b.key];
+          if (!uris.length) { addLog(`— Skipping ${b.name} (0 tracks)`); continue; }
+          setStatus('sort-status', `Creating ${b.name}…`);
+          const pid = await createOrFind(b.name);
+          step++; document.getElementById('sort-fill').style.width = Math.round(step/total*100) + '%';
+          await addTracks(pid, uris);
+          addLog(`→ Added ${uris.length} tracks to ${b.name}`, 'ok');
+          allMoved = allMoved.concat(uris);
+          step++; document.getElementById('sort-fill').style.width = Math.round(step/total*100) + '%';
+        }
+
+        setStatus('sort-status', 'Removing tracks from New Country…');
+        if (allMoved.length) {
+          await removeTracks(sourcePlaylistId, allMoved);
+          addLog(`✓ Removed ${allMoved.length} tracks from New Country`, 'ok');
+        }
+
+        document.getElementById('sort-fill').style.width = '100%';
+        setStatus('sort-status', '');
+        document.getElementById('done-box').style.display = 'block';
+        document.getElementById('done-msg').textContent = `${allMoved.length} tracks moved into ${active.length} new playlists. New Country has been cleared.`;
+      } catch(e) {
+        setStatus('sort-status', 'Error: ' + e.message, 'error');
+        addLog('✗ ' + e.message, 'err');
+        btn.disabled = false;
+      }
+    }
+
+    async function init() {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      const error = params.get('error');
+
+      if (error) {
+        setStatus('auth-status', 'Spotify auth error: ' + error, 'error');
+        return;
+      }
+
+      if (code) {
+        history.replaceState(null, '', window.location.pathname);
+        try {
+          token = await exchangeCode(code);
+        } catch(e) {
+          setStatus('auth-status', 'Auth failed: ' + e.message, 'error');
+          return;
+        }
+
+        const savedId = sessionStorage.getItem('spotify_client_id');
+        if (savedId) document.getElementById('client-id').value = savedId;
+        document.getElementById('card-auth').classList.add('disabled');
+        enableCard('card-scan');
+
+        try {
+          const me = await apiFetch('https://api.spotify.com/v1/me');
+          userId = me.id;
+          document.getElementById('user-name').textContent = me.display_name || me.id;
+        } catch(e) {
+          setStatus('scan-status', 'Could not load user profile: ' + e.message, 'error');
+        }
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
