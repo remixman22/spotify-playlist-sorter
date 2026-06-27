@@ -311,7 +311,7 @@
       const playlists = await getAll('https://api.spotify.com/v1/me/playlists?limit=50');
       const existing = playlists.find(p => p.name === name && p.owner.id === userId);
       if (existing) { addLog(`✓ Using existing: ${name}`, 'ok'); return existing.id; }
-      const data = await apiFetch(`https://api.spotify.com/v1/users/${userId}/playlists`, {
+      const data = await apiFetch(`https://api.spotify.com/v1/me/playlists`, {
         method: 'POST',
         body: JSON.stringify({ name, public: false, description: 'Sorted by Country Playlist Sorter' })
       });
